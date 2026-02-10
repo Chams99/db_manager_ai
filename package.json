@@ -1,0 +1,90 @@
+{
+  "name": "db-manager-ai",
+  "version": "1.0.0",
+  "description": "Simple AI Database Assistant Manager",
+  "main": "server/index.js",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "npm run dev --workspace=server",
+    "client": "npm start --workspace=client",
+    "build": "npm run build --workspace=client",
+    "install-all": "npm install"
+  },
+  "keywords": [
+    "database",
+    "ai",
+    "assistant",
+    "manager"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2"
+  },
+  "overrides": {
+    "nth-check": "2.1.1",
+    "postcss": "8.4.31",
+    "tar": "^7.5.7",
+    "react-scripts": {
+      "webpack-dev-server": "^4.15.2",
+      "@svgr/webpack": {
+        "@svgr/plugin-svgo": {
+          "svgo": {
+            "nth-check": "2.1.1",
+            "css-select": {
+              "nth-check": "2.1.1"
+            }
+          }
+        }
+      },
+      "resolve-url-loader": {
+        "postcss": "8.4.31"
+      }
+    },
+    "webpack-dev-server": "^4.15.2",
+    "svgo": {
+      "nth-check": "2.1.1",
+      "css-select": {
+        "nth-check": "2.1.1"
+      }
+    },
+    "@svgr/plugin-svgo": {
+      "svgo": {
+        "nth-check": "2.1.1",
+        "css-select": {
+          "nth-check": "2.1.1"
+        }
+      }
+    },
+    "resolve-url-loader": {
+      "postcss": "8.4.31"
+    },
+    "css-select": {
+      "nth-check": "2.1.1"
+    },
+    "sqlite3": "^5.1.7",
+    "semver": "^7.6.0",
+    "form-data": "^4.0.1",
+    "qs": "^6.14.1",
+    "tough-cookie": "^4.1.3",
+    "node-gyp": {
+      "tar": "^7.5.7"
+    },
+    "node-pre-gyp": {
+      "tar": "^7.5.7"
+    },
+    "request": {
+      "form-data": "^4.0.1",
+      "qs": "^6.14.1",
+      "tough-cookie": "^4.1.3"
+    }
+  },
+  "dependencies": {
+    "lucide-react": "^0.563.0"
+  }
+}

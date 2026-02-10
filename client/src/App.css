@@ -1,0 +1,188 @@
+.App {
+  min-height: 100vh;
+  padding: var(--spacing-lg);
+  position: relative;
+}
+
+.App-header {
+  text-align: left;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xl);
+  padding-top: var(--spacing-lg);
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.App-header h1 {
+  font-size: 1.5rem;
+  margin-bottom: 4px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.App-header h1 .header-icon {
+  margin-right: 8px;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.App-header p {
+  font-size: 0.9rem;
+  color: var(--text-tertiary);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+}
+
+.App-container {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: var(--spacing-lg);
+  max-width: 1600px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.App-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.App-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+@media (max-width: 1024px) {
+  .App-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .App-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+}
+
+/* Minimalist Card - Clean & Elegant */
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  position: relative;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-medium);
+}
+
+.card h2 {
+  font-size: 1.3rem;
+  margin-bottom: var(--spacing-md);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: var(--spacing-sm);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card h2 svg {
+  flex-shrink: 0;
+}
+
+/* Minimalist Button - Clean Style */
+.button {
+  background: var(--accent-primary);
+  color: white;
+  border: 1px solid var(--accent-primary);
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.button:hover {
+  background: var(--accent-secondary);
+  border-color: var(--accent-secondary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Minimalist Input - Clean Style */
+.input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: all var(--transition-base);
+}
+
+.input::placeholder {
+  color: var(--text-light);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(26, 26, 62, 0.1);
+}
+
+/* Minimalist Select - Clean Style */
+.select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%231a1a3e' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 40px;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(26, 26, 62, 0.1);
+}
+
+.select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}

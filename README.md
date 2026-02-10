@@ -613,8 +613,6 @@ SOFTWARE.
 
 <div align="center">
 
-## **Made with ❤️ using React, Express, and AI**
-
 [⬆ Back to Top](#-ai-database-assistant-manager)
 
 </div>

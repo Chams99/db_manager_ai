@@ -1,0 +1,53 @@
+.QueryEditor {
+  display: flex;
+  flex-direction: column;
+}
+
+.query-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.query-header h2 {
+  margin-bottom: 0;
+  border: none;
+  padding: 0;
+}
+
+.query-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.editor-container {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: var(--spacing-sm);
+  background: var(--bg-secondary);
+  transition: all var(--transition-base);
+}
+
+.editor-container:hover {
+  border-color: var(--border-medium);
+}
+
+.editor-container:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(26, 26, 62, 0.1);
+}
+
+.execution-info {
+  text-align: right;
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
