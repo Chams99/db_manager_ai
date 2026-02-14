@@ -531,7 +531,10 @@ app.post('/api/ai/assist', async (req, res) => {
         if (dbTypeForPrompt === DB_TYPES.SQLITE) {
           schemaInfo += `
 
-- SQLite RULES (this database is SQLite): SQLite does NOT support "ALTER TABLE table ADD CONSTRAINT name FOREIGN KEY (...) REFERENCES ...". To add foreign keys to EXISTING tables in SQLite you MUST recreate each table: (1) CREATE TABLE new_table (all columns, plus FOREIGN KEY (col) REFERENCES other_table(id) [ON DELETE CASCADE]); (2) INSERT INTO new_table SELECT * FROM old_table; (3) DROP TABLE old_table; (4) ALTER TABLE new_table RENAME TO old_table; Wrap the whole script in PRAGMA foreign_keys=off; BEGIN TRANSACTION; ... COMMIT; PRAGMA foreign_keys=on; Use the exact column names from the schema (same order and types as PRAGMA table_info). Do not use ALTER TABLE ... ADD CONSTRAINT in SQLite.`;
+- SQLite RULES (this database is SQLite):
+  * List tables: use "SELECT name FROM sqlite_master WHERE type='table';" — NEVER use "SHOW TABLES" or "SHOW DATABASES" (MySQL syntax).
+  * Describe table: use "PRAGMA table_info(table_name);" — NEVER use "DESCRIBE table" or "SHOW COLUMNS" (MySQL syntax).
+  * SQLite does NOT support "ALTER TABLE table ADD CONSTRAINT name FOREIGN KEY (...) REFERENCES ...". To add foreign keys to EXISTING tables you MUST recreate the table (create new, copy data, drop old, rename). Use the exact column names from the schema (same order and types as PRAGMA table_info). Do not use ALTER TABLE ... ADD CONSTRAINT in SQLite.`;
         }
       }
     }
@@ -579,7 +582,7 @@ Consider the database schema when optimizing. Provide the optimized query and a 
           { role: 'user', content: prompt }
         ],
         temperature: 0.3,  // Lower temperature for more focused responses
-        max_tokens: 400  // Increased to allow for multiple queries and explanations
+        max_tokens: 280  // Kept within free-tier credit limit
       })
     });
     
