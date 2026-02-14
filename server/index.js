@@ -86,12 +86,47 @@ async function executeQuery(connection, type, query) {
     switch (type) {
       case DB_TYPES.SQLITE:
         return new Promise((resolve, reject) => {
-          // Check if query is a SELECT statement
-          const trimmedQuery = query.trim().toUpperCase();
-          const isSelect = trimmedQuery.startsWith('SELECT');
-          
-          if (isSelect) {
-            // Use all() for SELECT queries
+          const trimmedQuery = query.trim();
+          const trimmedUpper = trimmedQuery.toUpperCase();
+          const isSelect = trimmedUpper.startsWith('SELECT');
+          // Multiple statements: split by semicolon, ignore empty and trailing
+          const statements = trimmedQuery.split(';').map(s => s.trim()).filter(Boolean);
+          const isMultiStatement = statements.length > 1;
+          const allSelects = statements.length > 0 && statements.every(s => s.toUpperCase().trim().startsWith('SELECT'));
+
+          if (isSelect && isMultiStatement && allSelects) {
+            // Multiple SELECTs: run each and collect all result sets
+            const resultSets = [];
+            let index = 0;
+            function runNext() {
+              if (index >= statements.length) {
+                const executionTime = Date.now() - startTime;
+                resolve({ resultSets, executionTime });
+                return;
+              }
+              const stmt = statements[index++] + ';';
+              connection.all(stmt, (err, rows) => {
+                if (err) {
+                  reject(err);
+                  return;
+                }
+                const rawRows = Array.isArray(rows) ? rows : [];
+                const columns = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+                // Use column order so every result set has rows as [val1, val2, ...] matching columns
+                const rowArrays = rawRows.map(row =>
+                  columns.map(col => (row != null && col in row ? row[col] : null))
+                );
+                resultSets.push({
+                  columns: [...columns],
+                  rows: rowArrays,
+                  rowCount: rowArrays.length
+                });
+                runNext();
+              });
+            }
+            runNext();
+          } else if (isSelect && !isMultiStatement) {
+            // Single SELECT: use all()
             connection.all(query, (err, rows) => {
               if (err) {
                 reject(err);
@@ -106,8 +141,24 @@ async function executeQuery(connection, type, query) {
                 executionTime
               });
             });
+          } else if (!isSelect && isMultiStatement) {
+            // Multiple non-SELECT statements (e.g. PRAGMA; BEGIN; CREATE; INSERT; DROP; RENAME; COMMIT): use exec()
+            connection.exec(query, (err) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              const executionTime = Date.now() - startTime;
+              resolve({
+                columns: [],
+                rows: [],
+                rowCount: 0,
+                executionTime,
+                message: 'Multiple statements executed successfully.'
+              });
+            });
           } else {
-            // Use run() for INSERT, UPDATE, DELETE, etc.
+            // Single non-SELECT: use run()
             connection.run(query, function(err) {
               if (err) {
                 reject(err);
@@ -239,9 +290,22 @@ app.post('/api/db/query', async (req, res) => {
     // Execute actual query
     const results = await executeQuery(dbInfo.connection, dbInfo.type, query);
     
+    // Multiple SELECT result sets (SQLite multi-statement)
+    if (results.resultSets && results.resultSets.length > 0) {
+      console.log('Query executed successfully (multiple result sets):', {
+        resultSetCount: results.resultSets.length,
+        executionTime: results.executionTime
+      });
+      return res.json({
+        success: true,
+        results: { resultSets: results.resultSets },
+        executionTime: results.executionTime
+      });
+    }
+    
     console.log('Query executed successfully:', { 
       rowCount: results.rowCount, 
-      columnCount: results.columns.length,
+      columnCount: (results.columns || []).length,
       executionTime: results.executionTime,
       isModifying: isModifyingQuery
     });
@@ -260,7 +324,7 @@ app.post('/api/db/query', async (req, res) => {
           const selectQuery = `SELECT * FROM ${tableName} WHERE ${whereClause}`;
           const affectedResults = await executeQuery(dbInfo.connection, dbInfo.type, selectQuery);
           
-          if (affectedResults.rowCount > 0) {
+          if (affectedResults.rowCount > 0 && !affectedResults.resultSets) {
             affectedRecords = {
               columns: affectedResults.columns,
               rows: affectedResults.rows,
@@ -281,9 +345,9 @@ app.post('/api/db/query', async (req, res) => {
         rows: affectedRecords ? affectedRecords.rows : results.rows,
         rowCount: results.rowCount,
         isModifyingQuery: isModifyingQuery,
-        message: isModifyingQuery 
+        message: results.message || (isModifyingQuery 
           ? `${results.rowCount} row(s) ${isUpdate ? 'updated' : isInsert ? 'inserted' : 'deleted'} successfully`
-          : null,
+          : null),
         lastInsertRowid: results.lastInsertRowid || null
       },
       executionTime: results.executionTime
@@ -411,9 +475,14 @@ app.post('/api/ai/assist', async (req, res) => {
       });
     }
     
-    // Get database schema if connectionId is provided
+    // Get database schema and type if connectionId is provided
     let schemaInfo = '';
+    let dbTypeForPrompt = null;
     if (connectionId) {
+      const dbInfo = dbConnections.get(connectionId);
+      if (dbInfo && dbInfo.connected) {
+        dbTypeForPrompt = dbInfo.type;
+      }
       const schema = await getSchemaText(connectionId);
       if (schema) {
         schemaInfo = `\n\nDatabase Schema:\n${schema}\n\nIMPORTANT RULES:
@@ -423,13 +492,19 @@ app.post('/api/ai/assist', async (req, res) => {
 - CRITICAL: "add [role] role" or "set [role] role" means UPDATE users SET role = '[role]' WHERE..., NOT ALTER TABLE. Only use ALTER TABLE if user explicitly asks to modify table structure.
 - Do NOT assume data values exist. Generate queries that would work regardless of whether the data exists.
 - If asking for "admin" and there's no role/type column, you may need to inform the user or generate a query that searches the name column, but be clear this is searching by name, not role.`;
+        if (dbTypeForPrompt === DB_TYPES.SQLITE) {
+          schemaInfo += `
+
+- SQLite RULES (this database is SQLite): SQLite does NOT support "ALTER TABLE table ADD CONSTRAINT name FOREIGN KEY (...) REFERENCES ...". To add foreign keys to EXISTING tables in SQLite you MUST recreate each table: (1) CREATE TABLE new_table (all columns, plus FOREIGN KEY (col) REFERENCES other_table(id) [ON DELETE CASCADE]); (2) INSERT INTO new_table SELECT * FROM old_table; (3) DROP TABLE old_table; (4) ALTER TABLE new_table RENAME TO old_table; Wrap the whole script in PRAGMA foreign_keys=off; BEGIN TRANSACTION; ... COMMIT; PRAGMA foreign_keys=on; Use the exact column names from the schema (same order and types as PRAGMA table_info). Do not use ALTER TABLE ... ADD CONSTRAINT in SQLite.`;
+        }
       }
     }
     
     let prompt = '';
     
     if (action === 'generate') {
-      prompt = `Generate SQL for: "${query}".${schemaInfo}
+      const dbTypeNote = dbTypeForPrompt ? ` Database type: ${dbTypeForPrompt}.` : '';
+      prompt = `Generate SQL for: "${query}".${dbTypeNote}${schemaInfo}
 
 Rules:
 1. Use only tables/columns from the schema above.

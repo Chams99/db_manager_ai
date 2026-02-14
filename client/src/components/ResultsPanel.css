@@ -106,3 +106,67 @@
 .no-results p {
   font-size: 1.1rem;
 }
+
+/* Multiple result sets (e.g. many SELECTs) */
+.result-sets-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.result-set-block {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.result-set-table-wrapper {
+  flex: none;
+  min-height: 80px;
+  max-height: 320px;
+}
+
+.result-set-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-hover);
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.result-set-header:hover {
+  background: var(--border-light);
+}
+
+.result-set-count {
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.no-results-inline {
+  padding: 16px;
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
+}
+
+.no-results-inline p {
+  margin: 0;
+}
