@@ -267,8 +267,9 @@ The server is hardened for production (aligned with patterns from [pdf-converter
 | **Rate limiting** | Limits requests per IP (default 100 per 15 min) to reduce abuse and DoS. |
 | **Body size limit** | Rejects oversized JSON bodies (default 1MB) to avoid memory exhaustion. |
 | **Traefik (Docker)** | HTTPS via TLS, optional middleware (e.g. `default-chain@file` for auth/rate limiting at the proxy). |
+| **Optional API key** | Set `API_KEY` in `server/.env`; then only requests with header `X-API-Key: <key>` or `Authorization: Bearer <key>` are allowed. Share the key only with people you want to use the app (e.g. friends). |
 
-**Best practices:** Keep `.env` out of version control, use a dedicated OpenRouter key with spending limits, and in production run the server behind Traefik (or another reverse proxy) with TLS. The API has no built-in authentication—restrict access (e.g. VPN, Traefik auth, or network firewall) if the server is not for public use.
+**Best practices:** Keep `.env` out of version control, use a dedicated OpenRouter key with spending limits, and in production run the server behind Traefik (or another reverse proxy) with TLS. To restrict who can use the API, set `API_KEY` on the server and `REACT_APP_API_KEY` (same value) in the client `.env`; give the key only to people you trust.
 
 <br>
 
@@ -377,6 +378,8 @@ chmod +x deploy.sh
 ```
 
 This builds the target (blue or green), waits for the health check, then stops the old instance. The server listens on port **5000** and exposes a health check at `GET /`.
+
+**Persistent SQLite data:** A named volume `db_manager_ai_data` is mounted at `/app/data`. The default SQLite path (when you don’t specify a file path) is `DATA_DIR/database.db`, so SQLite databases survive container restarts and redeploys. For custom paths in the UI, use paths under `/app/data` (e.g. `/app/data/my.db`) when running in Docker so they are stored on the volume.
 
 <br>
 <br>

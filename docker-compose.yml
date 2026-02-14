@@ -17,7 +17,10 @@ x-service-template: &service-template
   environment:
     - NODE_ENV=production
     - PORT=5000
+    - DATA_DIR=/app/data
     - INSTANCE_ID={{.Name}}
+  volumes:
+    - db_manager_ai_data:/app/data
   networks:
     - traefik
   deploy:
@@ -58,3 +61,6 @@ services:
 networks:
   traefik:
     external: true
+
+volumes:
+  db_manager_ai_data:

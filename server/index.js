@@ -11,7 +11,10 @@ require('dotenv').config();
 
 const app = express();
 // Server should always use port 5000 (React client uses 3000)
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
+
+// Trust first proxy (Traefik) so rate limiting uses real client IP from X-Forwarded-For
+app.set('trust proxy', 1);
 
 // --- Security middleware (same idea as pdf-converter-backend) ---
 app.use(helmet({
@@ -42,7 +45,18 @@ app.use(rateLimit({
 const bodyLimit = process.env.BODY_LIMIT || '1mb';
 app.use(express.json({ limit: bodyLimit }));
 
-// Health check for Docker/Traefik
+// Optional API key: if API_KEY is set, require it on all requests except health check
+const API_KEY = process.env.API_KEY;
+const requireApiKey = (req, res, next) => {
+  if (!API_KEY) return next();
+  const key = req.headers['x-api-key'] || (req.headers.authorization && req.headers.authorization.replace(/^Bearer\s+/i, ''));
+  if (key !== API_KEY) {
+    return res.status(401).json({ success: false, error: 'Invalid or missing API key' });
+  }
+  next();
+};
+
+// Health check for Docker/Traefik (no API key required)
 app.get('/', (_, res) => {
   res.status(200).json({
     status: 'success',
@@ -50,6 +64,9 @@ app.get('/', (_, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Protect all other routes when API_KEY is set
+app.use(requireApiKey);
 
 // OpenRouter configuration
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -73,8 +90,9 @@ const DB_TYPES = {
 // Helper function to create database connection
 async function createConnection(type, config) {
   switch (type) {
-    case DB_TYPES.SQLITE:
-      const dbPath = config.path || path.join(__dirname, 'database.db');
+    case DB_TYPES.SQLITE: {
+      const dataDir = process.env.DATA_DIR || __dirname;
+      const dbPath = config.path || path.join(dataDir, 'database.db');
       // Create directory if it doesn't exist
       const dbDir = path.dirname(dbPath);
       if (!fs.existsSync(dbDir)) {
@@ -86,7 +104,7 @@ async function createConnection(type, config) {
           else resolve(db);
         });
       });
-    
+    }
     case DB_TYPES.POSTGRES:
       const pgPool = new Pool({
         host: config.host || 'localhost',
