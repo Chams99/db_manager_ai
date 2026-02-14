@@ -249,6 +249,26 @@ OPENROUTER_MODEL=openai/gpt-4o-mini
 | `APP_URL` | No | `http://localhost:3000` | Frontend application URL |
 | `OPENROUTER_API_KEY` | Optional | - | API key for AI features |
 | `OPENROUTER_MODEL` | Optional | `openai/gpt-4o-mini` | AI model to use |
+| `CORS_ORIGIN` | No | `*` | Allowed origins (comma-separated) or `*` |
+| `RATE_LIMIT_WINDOW_MS` | No | `900000` (15 min) | Rate limit window in ms |
+| `RATE_LIMIT_MAX_REQUESTS` | No | `100` | Max requests per IP per window |
+| `BODY_LIMIT` | No | `1mb` | Max JSON body size |
+
+<br>
+
+### Security
+
+The server is hardened for production (aligned with patterns from [pdf-converter-backend](https://github.com/your-org/pdf-converter-backend)):
+
+| Layer | What it does |
+|-------|----------------|
+| **Helmet** | Sets secure HTTP headers (X-Content-Type-Options, X-Frame-Options, etc.). |
+| **CORS** | Restrict origins in production: set `CORS_ORIGIN` to your frontend URL (e.g. `https://dbmanager.example.com`). |
+| **Rate limiting** | Limits requests per IP (default 100 per 15 min) to reduce abuse and DoS. |
+| **Body size limit** | Rejects oversized JSON bodies (default 1MB) to avoid memory exhaustion. |
+| **Traefik (Docker)** | HTTPS via TLS, optional middleware (e.g. `default-chain@file` for auth/rate limiting at the proxy). |
+
+**Best practices:** Keep `.env` out of version control, use a dedicated OpenRouter key with spending limits, and in production run the server behind Traefik (or another reverse proxy) with TLS. The API has no built-in authentication—restrict access (e.g. VPN, Traefik auth, or network firewall) if the server is not for public use.
 
 <br>
 
@@ -327,6 +347,36 @@ npm run build
 ```
 
 The production build will be in `client/build/`.
+
+<br>
+
+### Deployment (Docker + Traefik)
+
+The **server** can be deployed with Docker and Traefik (blue/green, zero-downtime), same pattern as [pdf-converter-backend](https://github.com/your-org/pdf-converter-backend).
+
+**Prerequisites**
+
+- Docker and Docker Compose
+- Traefik running with external network `traefik`, TLS resolver `myresolver`, and middleware `default-chain@file`
+
+**Setup**
+
+1. Copy env and set your OpenRouter key:
+   ```bash
+   cp .env.example .env
+   # Edit .env: set OPENROUTER_API_KEY and optionally OPENROUTER_MODEL
+   ```
+
+2. In `docker-compose.yml`, set the host in the Traefik router rules (e.g. `Host(\`dbmanager.chames.dhibi.tn\`)`) to your domain.
+
+**Deploy**
+
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+This builds the target (blue or green), waits for the health check, then stops the old instance. The server listens on port **5000** and exposes a health check at `GET /`.
 
 <br>
 <br>

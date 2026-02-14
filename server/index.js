@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const sqlite3 = require('sqlite3').verbose();
 const { Pool } = require('pg');
 const mysql = require('mysql2/promise');
@@ -9,11 +11,45 @@ require('dotenv').config();
 
 const app = express();
 // Server should always use port 5000 (React client uses 3000)
-// This ensures server and client don't conflict
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json());
+// --- Security middleware (same idea as pdf-converter-backend) ---
+app.use(helmet({
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+const corsOrigin = process.env.CORS_ORIGIN || '*';
+app.use(cors({
+  origin: corsOrigin === '*' ? '*' : corsOrigin.split(',').map(s => s.trim()),
+  credentials: true,
+  optionsSuccessStatus: 200,
+}));
+
+// Rate limiting: prevent abuse (e.g. 100 req / 15 min per IP)
+const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
+const rateLimitMax = Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100;
+app.use(rateLimit({
+  windowMs: rateLimitWindowMs,
+  max: rateLimitMax,
+  message: { success: false, error: 'Too many requests from this IP, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.ip === '127.0.0.1' || req.ip === '::1',
+}));
+
+// Body size limit (protect against large payloads)
+const bodyLimit = process.env.BODY_LIMIT || '1mb';
+app.use(express.json({ limit: bodyLimit }));
+
+// Health check for Docker/Traefik
+app.get('/', (_, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'DB Manager AI Server',
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // OpenRouter configuration
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;

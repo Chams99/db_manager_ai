@@ -1,0 +1,62 @@
+version: '3.8'
+
+x-service-template: &service-template
+  build:
+    context: ./server
+    dockerfile: Dockerfile
+  healthcheck:
+    test:
+      - CMD-SHELL
+      - |
+        node -e "fetch('http://localhost:5000/').then(r => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"
+    interval: 5s
+    timeout: 5s
+    retries: 5
+    start_period: 10s
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment:
+    - NODE_ENV=production
+    - PORT=5000
+    - INSTANCE_ID={{.Name}}
+  networks:
+    - traefik
+  deploy:
+    resources:
+      limits:
+        cpus: '0.5'
+        memory: 512M
+
+services:
+  # ============================================
+  # Blue Instance
+  # ============================================
+  blue:
+    <<: *service-template
+    container_name: db-manager-ai-blue
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.db-manager-ai-blue.rule=Host(`dbmanager.chames.dhibi.tn`)"
+      - "traefik.http.routers.db-manager-ai-blue.entrypoints=websecure"
+      - "traefik.http.routers.db-manager-ai-blue.tls.certresolver=myresolver"
+      - "traefik.http.routers.db-manager-ai-blue.middlewares=default-chain@file"
+      - "traefik.http.services.db-manager-ai-blue.loadbalancer.server.port=5000"
+
+  # ============================================
+  # Green Instance
+  # ============================================
+  green:
+    <<: *service-template
+    container_name: db-manager-ai-green
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.db-manager-ai-green.rule=Host(`dbmanager.chames.dhibi.tn`)"
+      - "traefik.http.routers.db-manager-ai-green.entrypoints=websecure"
+      - "traefik.http.routers.db-manager-ai-green.tls.certresolver=myresolver"
+      - "traefik.http.routers.db-manager-ai-green.middlewares=default-chain@file"
+      - "traefik.http.services.db-manager-ai-green.loadbalancer.server.port=5000"
+
+networks:
+  traefik:
+    external: true
