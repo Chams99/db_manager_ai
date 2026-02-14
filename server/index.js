@@ -92,7 +92,23 @@ async function createConnection(type, config) {
   switch (type) {
     case DB_TYPES.SQLITE: {
       const dataDir = process.env.DATA_DIR || __dirname;
-      const dbPath = config.path || path.join(dataDir, 'database.db');
+      let dbPath;
+      if (config.path) {
+        // If path is provided, resolve it
+        // If it's relative (starts with ./ or ../), resolve relative to dataDir
+        // If it's absolute, use it as-is
+        if (config.path.startsWith('./') || config.path.startsWith('../')) {
+          dbPath = path.resolve(dataDir, config.path);
+        } else if (path.isAbsolute(config.path)) {
+          dbPath = config.path;
+        } else {
+          // Relative path without ./ prefix - resolve relative to dataDir
+          dbPath = path.resolve(dataDir, config.path);
+        }
+      } else {
+        // Default to database.db in server folder
+        dbPath = path.join(dataDir, 'database.db');
+      }
       // Create directory if it doesn't exist
       const dbDir = path.dirname(dbPath);
       if (!fs.existsSync(dbDir)) {
