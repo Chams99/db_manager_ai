@@ -582,7 +582,7 @@ Consider the database schema when optimizing. Provide the optimized query and a 
           { role: 'user', content: prompt }
         ],
         temperature: 0.3,  // Lower temperature for more focused responses
-        max_tokens: 280  // Kept within free-tier credit limit
+        max_tokens: 100  // Reduced to fit free-tier credit limit
       })
     });
     

@@ -8,7 +8,6 @@ function AIAssistant({ connectionId, onUseQuery }) {
   const [action, setAction] = useState('generate');
   const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [generatedQuery, setGeneratedQuery] = useState(null);
   const [generatedQueries, setGeneratedQueries] = useState([]);
 
   const handleAsk = async () => {
@@ -16,7 +15,6 @@ function AIAssistant({ connectionId, onUseQuery }) {
 
     setLoading(true);
     setResponse(null);
-    setGeneratedQuery(null);
     setGeneratedQueries([]);
 
     try {
@@ -32,19 +30,11 @@ function AIAssistant({ connectionId, onUseQuery }) {
         // Always prioritize the queries array if it exists and has items
         if (res.data.queries && Array.isArray(res.data.queries) && res.data.queries.length > 0) {
           setGeneratedQueries(res.data.queries);
-          // Also set the primary query for backward compatibility
-          if (res.data.query) {
-            setGeneratedQuery(res.data.query);
-          } else {
-            setGeneratedQuery(res.data.queries[0]);
-          }
         } else if (res.data.query) {
           // Fallback to single query if queries array is empty or doesn't exist
-          setGeneratedQuery(res.data.query);
           setGeneratedQueries([res.data.query]);
         } else {
-          // No queries found - clear both
-          setGeneratedQuery(null);
+          // No queries found - clear array
           setGeneratedQueries([]);
         }
       }
