@@ -9,32 +9,52 @@
   color: var(--text-primary);
   margin-bottom: var(--spacing-xl);
   padding-top: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
   max-width: 1600px;
   margin-left: auto;
   margin-right: auto;
+  position: relative;
+}
+
+.App-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-light), transparent);
 }
 
 .App-header h1 {
-  font-size: 1.5rem;
-  margin-bottom: 4px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-size: 1.75rem;
+  margin-bottom: var(--spacing-xs);
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 .App-header h1 .header-icon {
-  margin-right: 8px;
-  vertical-align: middle;
-  display: inline-block;
+  color: var(--accent-primary);
+  filter: drop-shadow(0 2px 4px rgba(26, 26, 62, 0.1));
+  transition: transform var(--transition-base);
+}
+
+.App-header h1:hover .header-icon {
+  transform: scale(1.05);
 }
 
 .App-header p {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: var(--text-tertiary);
   font-weight: 400;
   letter-spacing: 0.01em;
-  line-height: 1.5;
+  line-height: 1.6;
+  margin-top: var(--spacing-xs);
 }
 
 .App-container {
@@ -70,7 +90,7 @@
   }
 }
 
-/* Minimalist Card - Clean & Elegant */
+/* Enhanced Card - Professional & Polished */
 .card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
@@ -79,34 +99,76 @@
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-base);
   position: relative;
+  backdrop-filter: blur(10px);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent-primary-light), transparent);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  opacity: 0;
+  transition: opacity var(--transition-base);
 }
 
 .card:hover {
   box-shadow: var(--shadow-md);
   border-color: var(--border-medium);
+  transform: translateY(-2px);
+}
+
+.card:hover::before {
+  opacity: 1;
 }
 
 .card h2 {
   font-size: 1.3rem;
   margin-bottom: var(--spacing-md);
   color: var(--text-primary);
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 2px solid var(--border-light);
   padding-bottom: var(--spacing-sm);
   font-weight: 600;
   letter-spacing: -0.01em;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-sm);
+  position: relative;
+}
+
+.card h2::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 40px;
+  height: 2px;
+  background: var(--accent-primary);
+  border-radius: var(--radius-full);
+  transition: width var(--transition-base);
+}
+
+.card:hover h2::after {
+  width: 60px;
 }
 
 .card h2 svg {
   flex-shrink: 0;
+  color: var(--accent-primary);
+  transition: transform var(--transition-base);
 }
 
-/* Minimalist Button - Clean Style */
+.card:hover h2 svg {
+  transform: scale(1.1);
+}
+
+/* Enhanced Button - Professional & Interactive */
 .button {
   background: var(--accent-primary);
-  color: white;
+  color: var(--text-on-accent);
   border: 1px solid var(--accent-primary);
   padding: 12px 24px;
   border-radius: var(--radius-md);
@@ -115,18 +177,44 @@
   font-weight: 500;
   transition: all var(--transition-base);
   box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+}
+
+.button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left var(--transition-slow);
+}
+
+.button:hover::before {
+  left: 100%;
 }
 
 .button:hover {
-  background: var(--accent-secondary);
-  border-color: var(--accent-secondary);
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
   box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 .button:active {
   transform: translateY(0);
   box-shadow: var(--shadow-sm);
+}
+
+.button:focus {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 .button:disabled {
@@ -136,7 +224,13 @@
   box-shadow: none;
 }
 
-/* Minimalist Input - Clean Style */
+.button:disabled:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  transform: none;
+}
+
+/* Enhanced Input - Professional & Accessible */
 .input {
   width: 100%;
   padding: 12px 16px;
@@ -146,22 +240,36 @@
   background: var(--bg-secondary);
   color: var(--text-primary);
   transition: all var(--transition-base);
+  box-shadow: var(--shadow-xs);
 }
 
 .input::placeholder {
   color: var(--text-light);
+  opacity: 0.7;
+}
+
+.input:hover {
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-sm);
 }
 
 .input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(26, 26, 62, 0.1);
+  box-shadow: var(--shadow-focus);
+  background: var(--bg-secondary);
 }
 
-/* Minimalist Select - Clean Style */
+.input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--bg-hover);
+}
+
+/* Enhanced Select - Professional & Accessible */
 .select {
   width: 100%;
-  padding: 12px 16px;
+  padding: 12px 40px 12px 16px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   font-size: 1rem;
@@ -173,16 +281,28 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%231a1a3e' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
-  padding-right: 40px;
+  box-shadow: var(--shadow-xs);
+}
+
+.select:hover {
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-sm);
 }
 
 .select:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(26, 26, 62, 0.1);
+  box-shadow: var(--shadow-focus);
+}
+
+.select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--bg-hover);
 }
 
 .select option {
   background: var(--bg-secondary);
   color: var(--text-primary);
+  padding: var(--spacing-sm);
 }

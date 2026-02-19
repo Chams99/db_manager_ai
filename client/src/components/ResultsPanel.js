@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart, CheckCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { BarChart, CheckCircle, ChevronDown, ChevronRight, Download } from 'lucide-react';
 import './ResultsPanel.css';
 
 function SingleResultTable({ result, title, resultSetIndex, defaultOpen = true }) {
@@ -63,7 +63,13 @@ function SingleResultTable({ result, title, resultSetIndex, defaultOpen = true }
   );
 }
 
-function ResultsPanel({ results }) {
+function ResultsPanel({ results, onLoadMore, hasMore, loading }) {
+  const loadMore = () => {
+    if (onLoadMore && typeof onLoadMore === 'function') {
+      onLoadMore();
+    }
+  };
+
   if (!results) {
     return (
       <div className="card ResultsPanel">
@@ -105,50 +111,83 @@ function ResultsPanel({ results }) {
   const hasRows = results.rows && results.rows.length > 0;
   const hasColumns = results.columns && results.columns.length > 0;
 
+  // Normalize rows to ensure they're arrays (server may send array or object)
+  const normalizedRows = hasRows ? results.rows.map(row =>
+    Array.isArray(row) ? row : (row != null && typeof row === 'object' ? Object.values(row) : [])
+  ) : [];
+
+  // Debug logging
+  if (hasRows) {
+    console.log('ResultsPanel rendering:', {
+      rawRowsLength: results.rows?.length,
+      normalizedRowsLength: normalizedRows.length,
+      rowCount: results.rowCount,
+      columnsLength: results.columns?.length
+    });
+  }
+
   return (
     <div className="card ResultsPanel">
       <div className="results-header">
         <h2><BarChart size={18} /> Query Results</h2>
         <div className="results-count">
-          {results.rowCount} row{results.rowCount !== 1 ? 's' : ''}
+          {results.rowCount || normalizedRows.length} row{(results.rowCount || normalizedRows.length) !== 1 ? 's' : ''}
+          {hasMore && <span style={{ marginLeft: '8px', color: '#f59e0b' }}>+ more available</span>}
         </div>
       </div>
       
       {results.message && (
-        <div className="query-message" style={{
-          padding: '12px 16px',
-          marginBottom: '15px',
-          background: '#f0fdf4',
-          color: '#059669',
-          borderRadius: '8px',
-          fontWeight: '600',
-          border: '1px solid #bbf7d0'
-        }}>
-          <CheckCircle size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />{results.message}
+        <div className="query-message">
+          <CheckCircle size={16} />{results.message}
         </div>
       )}
       
       {hasRows && hasColumns ? (
-        <div className="results-container">
-          <table className="results-table">
-            <thead>
-              <tr>
-                {results.columns.map((col, idx) => (
-                  <th key={idx}>{col}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {results.rows.map((row, rowIdx) => (
-                <tr key={rowIdx}>
-                  {row.map((cell, cellIdx) => (
-                    <td key={cellIdx}>{cell !== null && cell !== undefined ? String(cell) : 'NULL'}</td>
+        <>
+          <div className="results-container">
+            <table className="results-table">
+              <thead>
+                <tr>
+                  {results.columns.map((col, idx) => (
+                    <th key={idx}>{col}</th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {normalizedRows.map((row, rowIdx) => {
+                  // Ensure we have a valid row
+                  if (!row || !Array.isArray(row) || row.length === 0) {
+                    console.warn(`Invalid row at index ${rowIdx}:`, row);
+                    return null;
+                  }
+                  return (
+                    <tr key={`row-${rowIdx}`}>
+                      {row.map((cell, cellIdx) => (
+                        <td key={`cell-${rowIdx}-${cellIdx}`}>{cell !== null && cell !== undefined ? String(cell) : 'NULL'}</td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          
+          {hasMore && (
+            <div className="load-more-container">
+              <button
+                className="button load-more-button"
+                onClick={loadMore}
+                disabled={loading}
+              >
+                <Download size={16} />
+                {loading ? 'Loading more...' : 'Load More Rows'}
+              </button>
+              <p className="load-more-info">
+                Showing {results.offset || 0} - {(results.offset || 0) + (results.rowCount || 0)} rows
+              </p>
+            </div>
+          )}
+        </>
       ) : results.isModifyingQuery && results.rowCount > 0 ? (
         <div className="no-results">
           <p style={{ color: '#059669', fontWeight: '600' }}>

@@ -11,10 +11,12 @@ function App() {
   const [queryResults, setQueryResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [queryToSet, setQueryToSet] = useState(null);
+  const [currentOffset, setCurrentOffset] = useState(0);
 
   const handleConnection = (id) => {
     setConnectionId(id);
     setQueryResults(null);
+    setCurrentOffset(0);
   };
 
   const handleQueryResult = (results) => {
@@ -23,6 +25,11 @@ function App() {
 
   const handleUseQuery = (query) => {
     setQueryToSet(query);
+  };
+
+  const handleLoadMoreClick = () => {
+    // Keep in sync with QueryEditor limit (currently 100)
+    setCurrentOffset(prev => prev + 100);
   };
 
   return (
@@ -52,8 +59,15 @@ function App() {
             setLoading={setLoading}
             queryToSet={queryToSet}
             onQuerySet={() => setQueryToSet(null)}
+            currentOffset={currentOffset}
+            setCurrentOffset={setCurrentOffset}
           />
-          <ResultsPanel results={queryResults} />
+          <ResultsPanel 
+            results={queryResults}
+            onLoadMore={handleLoadMoreClick}
+            hasMore={queryResults?.hasMore}
+            loading={loading}
+          />
         </div>
       </div>
     </div>
