@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const sqlite3 = require('sqlite3').verbose();
 const { Pool } = require('pg');
-const mysql = require('mysql2/promise');
+const mysql = require('mysql2');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
@@ -150,128 +150,172 @@ async function createConnection(type, config) {
 
 // Helper function to execute query
 async function executeQuery(connection, type, query) {
-  const startTime = Date.now();
-  
-  try {
-    switch (type) {
-      case DB_TYPES.SQLITE:
-        return new Promise((resolve, reject) => {
-          const trimmedQuery = query.trim();
-          const trimmedUpper = trimmedQuery.toUpperCase();
-          const isSelect = trimmedUpper.startsWith('SELECT');
-          // Multiple statements: split by semicolon, ignore empty and trailing
-          const statements = trimmedQuery.split(';').map(s => s.trim()).filter(Boolean);
-          const isMultiStatement = statements.length > 1;
-          const allSelects = statements.length > 0 && statements.every(s => s.toUpperCase().trim().startsWith('SELECT'));
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    const resultSets = [];
+    const columns = [];
 
-          if (isSelect && isMultiStatement && allSelects) {
-            // Multiple SELECTs: run each and collect all result sets
-            const resultSets = [];
-            let index = 0;
-            function runNext() {
-              if (index >= statements.length) {
-                const executionTime = Date.now() - startTime;
-                resolve({ resultSets, executionTime });
+    try {
+      switch (type) {
+        case DB_TYPES.MYSQL: {
+          // MySQL: Use query and stream
+          const stream = connection.query(query).stream();
+
+          stream.on('fields', (fields) => {
+            fields.forEach(field => columns.push(field.name));
+          });
+
+          stream.on('data', (row) => {
+            const rowArray = columns.map(col => (row != null && col in row ? row[col] : null));
+            resultSets.push(rowArray);
+          });
+
+          stream.on('end', () => {
+            const executionTime = Date.now() - startTime;
+            resolve({
+              columns,
+              rows: resultSets,
+              rowCount: resultSets.length,
+              executionTime
+            });
+          });
+
+          stream.on('error', (err) => {
+            console.error('Stream error:', err);
+            reject(err);
+          });
+          break;
+        }
+        case DB_TYPES.POSTGRES: {
+          // PostgreSQL: Stream rows using cursor for memory efficiency
+          const Cursor = require('pg-cursor');
+          const cursor = connection.query(new Cursor(query));
+          const BATCH_SIZE = 500;
+
+          const readNextBatch = () => {
+            cursor.read(BATCH_SIZE, (err, rows) => {
+              if (err) {
+                console.error('Cursor error:', err);
+                cursor.close(() => reject(err));
                 return;
               }
-              const stmt = statements[index++] + ';';
-              connection.all(stmt, (err, rows) => {
+
+              if (rows.length === 0) {
+                // All rows fetched
+                cursor.close(() => {
+                  const executionTime = Date.now() - startTime;
+                  resolve({
+                    columns,
+                    rows: resultSets,
+                    rowCount: resultSets.length,
+                    executionTime
+                  });
+                });
+                return;
+              }
+
+              // Process rows
+              rows.forEach((row, idx) => {
+                if (columns.length === 0) {
+                  Object.keys(row).forEach(col => columns.push(col));
+                }
+                const rowArray = columns.map(col => (row != null && col in row ? row[col] : null));
+                resultSets.push(rowArray);
+              });
+
+              // If we got a full batch, read the next one
+              if (rows.length === BATCH_SIZE) {
+                readNextBatch();
+              } else {
+                // Partial batch means we got all remaining rows
+                cursor.close(() => {
+                  const executionTime = Date.now() - startTime;
+                  resolve({
+                    columns,
+                    rows: resultSets,
+                    rowCount: resultSets.length,
+                    executionTime
+                  });
+                });
+              }
+            });
+          };
+
+          readNextBatch();
+          break;
+        }
+        case DB_TYPES.SQLITE: {
+          // SQLite: Use each() for streaming SELECT, run() for INSERT/UPDATE/DELETE
+          const isSelect = query.trim().toUpperCase().startsWith('SELECT');
+          
+          if (isSelect) {
+            // Stream rows using .each() for memory efficiency
+            let rowCount = 0;
+            connection.each(
+              query,
+              (err, row) => {
                 if (err) {
+                  console.error('SQLite each error:', err);
                   reject(err);
                   return;
                 }
-                const rawRows = Array.isArray(rows) ? rows : [];
-                const columns = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
-                // Use column order so every result set has rows as [val1, val2, ...] matching columns
-                const rowArrays = rawRows.map(row =>
-                  columns.map(col => (row != null && col in row ? row[col] : null))
-                );
-                resultSets.push({
-                  columns: [...columns],
-                  rows: rowArrays,
-                  rowCount: rowArrays.length
+                
+                // Extract columns on first row
+                if (rowCount === 0) {
+                  Object.keys(row).forEach(col => columns.push(col));
+                }
+                
+                // Process row
+                const rowArray = columns.map(col => row[col]);
+                resultSets.push(rowArray);
+                rowCount++;
+              },
+              (err) => {
+                // Called when done
+                if (err) {
+                  console.error('SQLite each completion error:', err);
+                  reject(err);
+                  return;
+                }
+                
+                const executionTime = Date.now() - startTime;
+                resolve({
+                  columns,
+                  rows: resultSets,
+                  rowCount: resultSets.length,
+                  executionTime
                 });
-                runNext();
-              });
-            }
-            runNext();
-          } else if (isSelect && !isMultiStatement) {
-            // Single SELECT: use all()
-            connection.all(query, (err, rows) => {
+              }
+            );
+          } else {
+            // For INSERT, UPDATE, DELETE - use run()
+            connection.run(query, function(err) {
               if (err) {
+                console.error('SQLite run error:', err);
                 reject(err);
                 return;
               }
+
               const executionTime = Date.now() - startTime;
-              const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
               resolve({
-                columns,
-                rows: rows.map(row => Object.values(row)),
-                rowCount: rows.length,
+                columns: [],
+                rows: [],
+                rowCount: this.changes,
+                lastInsertRowid: this.lastID,
                 executionTime
               });
             });
-          } else if (!isSelect && isMultiStatement) {
-            // Multiple non-SELECT statements (e.g. PRAGMA; BEGIN; CREATE; INSERT; DROP; RENAME; COMMIT): use exec()
-            connection.exec(query, (err) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              const executionTime = Date.now() - startTime;
-              resolve({
-                columns: [],
-                rows: [],
-                rowCount: 0,
-                executionTime,
-                message: 'Multiple statements executed successfully.'
-              });
-            });
-          } else {
-            // Single non-SELECT: use run()
-            connection.run(query, function(err) {
-              if (err) {
-                reject(err);
-                return;
-              }
-              const executionTime = Date.now() - startTime;
-              resolve({
-                columns: [],
-                rows: [],
-                rowCount: this.changes || 0,
-                executionTime,
-                lastInsertRowid: this.lastID || null
-              });
-            });
           }
-        });
-      
-      case DB_TYPES.POSTGRES:
-        const pgResult = await connection.query(query);
-        const executionTime = Date.now() - startTime;
-        return {
-          columns: pgResult.fields?.map(f => f.name) || [],
-          rows: pgResult.rows.map(row => Object.values(row)),
-          rowCount: pgResult.rowCount || 0,
-          executionTime
-        };
-      
-      case DB_TYPES.MYSQL:
-        const [mysqlRows, mysqlFields] = await connection.execute(query);
-        const mysqlExecutionTime = Date.now() - startTime;
-        return {
-          columns: mysqlFields?.map(f => f.name) || [],
-          rows: Array.isArray(mysqlRows[0]) ? mysqlRows : mysqlRows.map(row => Object.values(row)),
-          rowCount: mysqlRows.length || 0,
-          executionTime: mysqlExecutionTime
-        };
-      
-      default:
-        throw new Error(`Unsupported database type: ${type}`);
+          break;
+        }
+        default:
+          throw new Error(`Unsupported database type: ${type}`);
+      }
+    } catch (error) {
+      console.error('Error executing query:', error);
+      reject(error);
     }
-  } catch (error) {
-    throw error;
-  }
+  });
 }
 
 // Test database connection
@@ -327,7 +371,265 @@ app.post('/api/db/connect', async (req, res) => {
   }
 });
 
-// Execute query
+// Execute query with streaming support
+app.post('/api/db/query/stream', async (req, res) => {
+  try {
+    const { connectionId, query, limit = 50000, offset = 0 } = req.body;
+    
+    console.log('Streaming query request:', { connectionId, query: query?.substring(0, 100), limit, offset });
+    
+    if (!connectionId || !query) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing connectionId or query'
+      });
+    }
+    
+    const dbInfo = dbConnections.get(connectionId);
+    if (!dbInfo || !dbInfo.connected) {
+      console.error('Connection not found:', connectionId);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Database connection not found or not connected' 
+      });
+    }
+    
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    // Check query type
+    const trimmedQuery = query.trim().toUpperCase();
+    const isUpdate = trimmedQuery.startsWith('UPDATE');
+    const isInsert = trimmedQuery.startsWith('INSERT');
+    const isDelete = trimmedQuery.startsWith('DELETE');
+    const isModifyingQuery = isUpdate || isInsert || isDelete;
+    const isSelect = trimmedQuery.startsWith('SELECT');
+    
+    // For SELECT queries, add LIMIT/OFFSET if not already present so we can
+    // stream large result sets in manageable chunks and page with "Load more".
+    let finalQuery = query;
+    const maxLimit = 1000; // conservative safety cap per page for very wide tables
+    const requestLimit = Math.min(Number(limit) || maxLimit, maxLimit);
+
+    if (isSelect && !query.toUpperCase().includes('LIMIT')) {
+      finalQuery = `${query.trim()} LIMIT ${requestLimit} OFFSET ${offset}`;
+    }
+    
+    const startTime = Date.now();
+    let rowCount = 0;
+    let columns = [];
+    let headerSent = false;
+    
+    try {
+      await streamQuery(dbInfo.connection, dbInfo.type, finalQuery, {
+        onColumns: (cols) => {
+          columns = cols;
+          if (!headerSent) {
+            res.write(`data: ${JSON.stringify({ 
+              type: 'columns', 
+              columns: cols 
+            })}\n\n`);
+            headerSent = true;
+          }
+        },
+        onRow: (row) => {
+          rowCount++;
+          const canContinue = res.write(`data: ${JSON.stringify({ 
+            type: 'row', 
+            row: row,
+            rowIndex: rowCount - 1
+          })}\n\n`);
+          
+          // Return whether we should continue (backpressure)
+          return canContinue;
+        },
+        onComplete: (result) => {
+          const executionTime = Date.now() - startTime;
+          const hasMore = isSelect && rowCount >= requestLimit;
+
+          res.write(`data: ${JSON.stringify({ 
+            type: 'complete',
+            rowCount: rowCount,
+            executionTime: executionTime,
+            lastInsertRowid: result.lastInsertRowid || null,
+            changes: result.changes || rowCount,
+            isModifyingQuery: isModifyingQuery,
+            hasMore: hasMore,
+            nextOffset: hasMore ? offset + rowCount : null
+          })}\n\n`);
+          res.write('data: [DONE]\n\n');
+          res.end();
+        },
+        onError: (error) => {
+          res.write(`data: ${JSON.stringify({ 
+            type: 'error', 
+            error: error.message 
+          })}\n\n`);
+          res.end();
+        }
+      });
+    } catch (error) {
+      console.error('Streaming query error:', error);
+      res.write(`data: ${JSON.stringify({ 
+        type: 'error', 
+        error: error.message 
+      })}\n\n`);
+      res.end();
+    }
+  } catch (error) {
+    console.error('Streaming endpoint error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Helper function to stream query results with backpressure handling
+async function streamQuery(connection, type, query, callbacks) {
+  const isSelect = query.trim().toUpperCase().startsWith('SELECT');
+  
+  switch (type) {
+    case DB_TYPES.MYSQL: {
+      const stream = connection.query(query).stream();
+      let columns = [];
+      let paused = false;
+      
+      stream.on('fields', (fields) => {
+        columns = fields.map(f => f.name);
+        callbacks.onColumns(columns);
+      });
+      
+      stream.on('data', (row) => {
+        const rowArray = columns.map(col => (row != null && col in row ? row[col] : null));
+        const canContinue = callbacks.onRow(rowArray);
+        
+        // Implement backpressure: pause stream if client can't keep up
+        if (!canContinue && !paused) {
+          stream.pause();
+          paused = true;
+        }
+      });
+      
+      stream.on('end', () => {
+        callbacks.onComplete({ changes: 0 });
+      });
+      
+      stream.on('error', (err) => {
+        callbacks.onError(err);
+      });
+      break;
+    }
+    
+    case DB_TYPES.POSTGRES: {
+      const Cursor = require('pg-cursor');
+      const cursor = connection.query(new Cursor(query));
+      let columns = [];
+      const BATCH_SIZE = 500;
+      let rowsSinceLastCheck = 0;
+      
+      const readNextBatch = () => {
+        cursor.read(BATCH_SIZE, (err, rows) => {
+          if (err) {
+            cursor.close(() => callbacks.onError(err));
+            return;
+          }
+          
+          if (rows.length === 0) {
+            cursor.close(() => callbacks.onComplete({ changes: 0 }));
+            return;
+          }
+          
+          let shouldContinue = true;
+          rows.forEach((row, idx) => {
+            if (columns.length === 0) {
+              columns = Object.keys(row);
+              callbacks.onColumns(columns);
+            }
+            
+            if (shouldContinue) {
+              const rowArray = columns.map(col => (row != null && col in row ? row[col] : null));
+              shouldContinue = callbacks.onRow(rowArray);
+              rowsSinceLastCheck++;
+            }
+          });
+          
+          // If client asked to stop or we got less than batch size, we're done
+          if (!shouldContinue) {
+            cursor.close(() => callbacks.onComplete({ changes: 0 }));
+          } else if (rows.length === BATCH_SIZE) {
+            // Use setImmediate to allow other operations to run (backpressure)
+            setImmediate(() => readNextBatch());
+          } else {
+            cursor.close(() => callbacks.onComplete({ changes: 0 }));
+          }
+        });
+      };
+      
+      readNextBatch();
+      break;
+    }
+    
+    case DB_TYPES.SQLITE: {
+      if (isSelect) {
+        let columns = [];
+        let rowIndex = 0;
+
+        // NOTE: sqlite3's `each` API does not support native backpressure.
+        // For large result sets we prefer to stream ALL rows, even if this
+        // means Node will buffer writes internally. This matches the app's
+        // goal of "show everything" for big tables.
+        connection.each(
+          query,
+          (err, row) => {
+            if (err) {
+              callbacks.onError(err);
+              return;
+            }
+
+            if (rowIndex === 0) {
+              columns = Object.keys(row);
+              callbacks.onColumns(columns);
+            }
+
+            const rowArray = columns.map(col => row[col]);
+            callbacks.onRow(rowArray);
+
+            rowIndex++;
+          },
+          (err) => {
+            if (err) {
+              callbacks.onError(err);
+              return;
+            }
+            callbacks.onComplete({ changes: 0 });
+          }
+        );
+      } else {
+        // For modifying queries
+        connection.run(query, function(err) {
+          if (err) {
+            callbacks.onError(err);
+            return;
+          }
+          callbacks.onComplete({ 
+            changes: this.changes,
+            lastInsertRowid: this.lastID 
+          });
+        });
+      }
+      break;
+    }
+    
+    default:
+      callbacks.onError(new Error(`Unsupported database type: ${type}`));
+  }
+}
+
+// Execute query (non-streaming)
 app.post('/api/db/query', async (req, res) => {
   try {
     const { connectionId, query } = req.body;
